@@ -1,4 +1,4 @@
-//! .pouch 자체 포맷 압축/해제 (포맷 설명은 format.rs)
+//! .bzx (Pouch 자체 형식) 압축/해제 (포맷 설명은 format.rs)
 
 use crate::block::{self, BlockReader, BlockWriter};
 use crate::format::{self, CODEC_ZSTD, EntryHeader, EntryKind, HEADER_SIZE, Header};

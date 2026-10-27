@@ -40,7 +40,7 @@ fn single_file_roundtrip() {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("hello.txt");
     fs::write(&src, "안녕하세요 pouch ".repeat(10_000)).unwrap();
-    let archive = dir.path().join("hello.txt.pouch");
+    let archive = dir.path().join("hello.txt.bzx");
     let out = dir.path().join("out");
 
     let stats = compress_path(&src, &archive, &opts(1)).unwrap();
@@ -71,7 +71,7 @@ fn folder_roundtrip() {
         .collect();
     fs::write(root.join("src/깊은/폴더/noise.bin"), &noise).unwrap();
 
-    let archive = dir.path().join("프로젝트.pouch");
+    let archive = dir.path().join("프로젝트.bzx");
     let stats = compress_path(&root, &archive, &opts(4)).unwrap();
     assert_eq!(stats.files, 4);
     assert_eq!(stats.dirs, 5); // 프로젝트, src, 깊은, 폴더, 빈폴더
@@ -87,7 +87,7 @@ fn refuses_overwrite_without_force() {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("a.txt");
     fs::write(&src, "data").unwrap();
-    let archive = dir.path().join("a.txt.pouch");
+    let archive = dir.path().join("a.txt.bzx");
     compress_path(&src, &archive, &opts(1)).unwrap();
 
     // 같은 폴더에 풀면 a.txt가 이미 있으므로 실패해야 함
@@ -102,7 +102,7 @@ fn archive_inside_input_folder_is_skipped() {
     let root = dir.path().join("folder");
     fs::create_dir(&root).unwrap();
     fs::write(root.join("a.txt"), "aaa").unwrap();
-    let archive = root.join("folder.pouch"); // 압축 대상 폴더 안에 출력
+    let archive = root.join("folder.bzx"); // 압축 대상 폴더 안에 출력
     let stats = compress_path(&root, &archive, &opts(1)).unwrap();
     assert_eq!(stats.files, 1);
 }
@@ -112,7 +112,7 @@ fn detects_corruption() {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("a.txt");
     fs::write(&src, "hello world ".repeat(100_000)).unwrap();
-    let archive = dir.path().join("a.txt.pouch");
+    let archive = dir.path().join("a.txt.bzx");
     compress_path(&src, &archive, &opts(1)).unwrap();
 
     // 압축 데이터 중간의 바이트 하나를 망가뜨림
@@ -128,7 +128,7 @@ fn detects_corruption() {
 fn blocks_path_traversal() {
     // "../evil.txt" 를 담은 악성 아카이브를 직접 만든다 (v2 형식: zstd 스트림 하나)
     let dir = tempfile::tempdir().unwrap();
-    let archive = dir.path().join("evil.pouch");
+    let archive = dir.path().join("evil.bzx");
     let mut f = fs::File::create(&archive).unwrap();
     Header {
         version: 2,
@@ -171,7 +171,7 @@ fn multiple_inputs_roundtrip() {
     fs::create_dir(&b).unwrap();
     fs::write(b.join("b.txt"), "bbb").unwrap();
 
-    let archive = dir.path().join("묶음.pouch");
+    let archive = dir.path().join("묶음.bzx");
     let stats = pouch::compress_paths(&[a.clone(), b.clone()], &archive, &opts(2)).unwrap();
     assert_eq!((stats.files, stats.dirs), (2, 1));
 
@@ -186,7 +186,7 @@ fn cancel_removes_partial_archive() {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("big.bin");
     fs::write(&src, vec![7u8; 8 << 20]).unwrap();
-    let archive = dir.path().join("big.bin.pouch");
+    let archive = dir.path().join("big.bin.bzx");
 
     let control = pouch::Control::default();
     control.cancel(); // 시작하자마자 취소된 상태
@@ -213,7 +213,7 @@ fn progress_counts_all_bytes() {
         control: Some(control.clone()),
         format: pouch::OutFormat::Pouch,
     };
-    compress_path(&src, &dir.path().join("p.pouch"), &o).unwrap();
+    compress_path(&src, &dir.path().join("p.bzx"), &o).unwrap();
     assert_eq!(control.done(), 3 << 20);
     assert_eq!(pouch::scan_total_size(&[src]), 3 << 20);
 }
@@ -226,7 +226,7 @@ fn rename_on_conflict_adds_numbers() {
     fs::write(folder.join("a.jpg"), "new").unwrap();
     let file = dir.path().join("메모.txt");
     fs::write(&file, "memo").unwrap();
-    let archive = dir.path().join("묶음.pouch");
+    let archive = dir.path().join("묶음.bzx");
     pouch::compress_paths(&[folder.clone(), file.clone()], &archive, &opts(1)).unwrap();
 
     // 같은 곳에 두 번 풀기 → 사진 (1), 메모 (1).txt / 사진 (2), 메모 (2).txt
@@ -252,7 +252,7 @@ fn rename_does_nothing_without_conflict() {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("a.txt");
     fs::write(&src, "x").unwrap();
-    let archive = dir.path().join("a.pouch");
+    let archive = dir.path().join("a.bzx");
     compress_path(&src, &archive, &opts(1)).unwrap();
     let out = dir.path().join("out");
     let (_, stats) = extract_archive(&archive, Some(&out), Conflict::Rename, |_| {}).unwrap();

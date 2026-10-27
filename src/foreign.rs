@@ -37,7 +37,7 @@ pub enum Outer {
 impl ArchiveKind {
     pub fn label(self) -> &'static str {
         match self {
-            ArchiveKind::Pouch => "pouch",
+            ArchiveKind::Pouch => "bzx",
             ArchiveKind::Zip => "zip",
             ArchiveKind::SevenZ => "7z",
             ArchiveKind::Tar(Outer::None) => "tar",
@@ -56,7 +56,7 @@ impl ArchiveKind {
 
 /// 이 프로그램이 열 수 있는 확장자 (파일 선택 창·끌어다 놓기 판단용)
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "pouch", "bzx", "zip", "7z", "tar", "gz", "tgz", "bz2", "tbz", "tbz2", "xz", "txz", "zst",
+    "bzx", "pouch", "zip", "7z", "tar", "gz", "tgz", "bz2", "tbz", "tbz2", "xz", "txz", "zst",
     "tzst",
 ];
 
@@ -94,7 +94,7 @@ pub fn detect(path: &Path) -> Result<ArchiveKind> {
     } else if is_tar_header(head) {
         return Ok(ArchiveKind::Tar(Outer::None));
     } else {
-        bail!("지원하지 않는 압축 형식입니다 (지원: pouch, zip, 7z, tar, gz, bz2, xz, zst)");
+        bail!("지원하지 않는 압축 형식입니다 (지원: bzx, zip, 7z, tar, gz, bz2, xz, zst)");
     };
 
     // 압축 스트림 안이 tar인지, 파일 하나인지 앞부분을 풀어서 확인

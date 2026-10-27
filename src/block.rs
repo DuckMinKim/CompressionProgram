@@ -362,9 +362,9 @@ impl Read for BlockReader {
 
 // ───────────────────────────── 인덱스 ─────────────────────────────
 
-const INDEX_MAGIC: [u8; 4] = *b"PCHI";
-/// 예전 이름(bzx)으로 만든 파일의 인덱스 표시
-const LEGACY_INDEX_MAGIC: [u8; 4] = *b"BZXI";
+const INDEX_MAGIC: [u8; 4] = *b"BZXI";
+/// 잠시 .pouch 확장자를 쓰던 때 만든 파일의 인덱스 표시
+const LEGACY_INDEX_MAGIC: [u8; 4] = *b"PCHI";
 
 pub fn write_index<W: Write>(w: &mut W, metas: &[BlockMeta]) -> io::Result<()> {
     w.write_all(&INDEX_MAGIC)?;

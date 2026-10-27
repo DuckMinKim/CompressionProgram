@@ -1,10 +1,10 @@
-//! Windows 파일 연결 — `.pouch` 파일에 아이콘을 붙이고, 더블클릭하면 Pouch로 열리게 한다.
-//! 예전 이름의 `.bzx` 파일도 같이 연결한다.
+//! Windows 파일 연결 — `.bzx` 파일에 아이콘을 붙이고, 더블클릭하면 Pouch로 열리게 한다.
+//! 잠시 쓰던 `.pouch` 확장자도 같이 연결한다.
 //!
 //! 관리자 권한 없이 현재 사용자 영역(HKEY_CURRENT_USER\Software\Classes)에만 쓴다.
 //!
 //! ```text
-//! HKCU\Software\Classes\.pouch                         (기본값) = "pouch.archive"   (.bzx도 같음)
+//! HKCU\Software\Classes\.bzx                           (기본값) = "pouch.archive"   (.pouch도 같음)
 //! HKCU\Software\Classes\pouch.archive                (기본값) = "Pouch 압축 파일"
 //! HKCU\Software\Classes\pouch.archive\DefaultIcon    (기본값) = "...\pouch\pouch.ico",0
 //! HKCU\Software\Classes\pouch.archive\shell\open\command (기본값) = "...\pouch-gui.exe" "%1"
@@ -43,10 +43,10 @@ mod imp {
     /// 예전 이름으로 등록했던 것 (등록·해제할 때 정리)
     const LEGACY_PROG_ID: &str = "bzx.archive";
     /// 연결할 확장자 (새 이름 + 예전 이름)
-    const EXTENSIONS: [&str; 2] = [".pouch", ".bzx"];
+    const EXTENSIONS: [&str; 2] = [".bzx", ".pouch"];
     const CLASSES: &str = r"Software\Classes";
 
-    /// `.pouch` 파일을 `exe`(보통 pouch-gui.exe)와 연결하고 아이콘을 등록한다.
+    /// `.bzx` 파일을 `exe`(보통 pouch-gui.exe)와 연결하고 아이콘을 등록한다.
     pub fn register(exe: &Path) -> Result<()> {
         // 아이콘을 %LOCALAPPDATA%\pouch\pouch.ico 로 풀어 둔다 (exe를 옮겨도 아이콘은 유지)
         let icon_path = icon_dir()?.join("pouch.ico");
@@ -56,7 +56,7 @@ mod imp {
         let classes = RegKey::predef(HKEY_CURRENT_USER)
             .open_subkey_with_flags(CLASSES, winreg::enums::KEY_ALL_ACCESS)?;
 
-        // .pouch와 예전 이름의 .bzx 모두 Pouch로 연다
+        // .bzx와 잠시 쓰던 .pouch 모두 Pouch로 연다
         for e in EXTENSIONS {
             let (ext, _) = classes.create_subkey(e)?;
             ext.set_value("", &PROG_ID)?;
@@ -112,10 +112,10 @@ mod imp {
         Ok(())
     }
 
-    /// 지금 `.pouch`가 이 `exe`와 연결되어 있는지
+    /// 지금 `.bzx`가 이 `exe`와 연결되어 있는지
     pub fn is_registered(exe: &Path) -> bool {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let Ok(ext) = hkcu.open_subkey(format!(r"{CLASSES}\.pouch")) else {
+        let Ok(ext) = hkcu.open_subkey(format!(r"{CLASSES}\.bzx")) else {
             return false;
         };
         let prog: String = ext.get_value("").unwrap_or_default();

@@ -33,7 +33,7 @@ const BUFFER_ENTRY: usize = 4 << 20;
 const STORE_EXT: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "webp", "heic", "avif", "mp4", "mkv", "mov", "avi", "webm", "mp3",
     "aac", "m4a", "ogg", "opus", "flac", "zip", "7z", "rar", "gz", "tgz", "bz2", "xz", "zst",
-    "pouch", "bzx", "docx", "xlsx", "pptx", "hwpx", "jar", "apk",
+    "bzx", "pouch", "docx", "xlsx", "pptx", "hwpx", "jar", "apk",
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq)]

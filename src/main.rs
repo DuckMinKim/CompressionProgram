@@ -12,7 +12,7 @@ use std::time::Instant;
 #[command(
     name = "pouch",
     version,
-    about = "빠른 압축/해제 프로그램 — 만들기: pouch, zip / 풀기: pouch(.bzx), zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst"
+    about = "빠른 압축/해제 프로그램 — 만들기: bzx, zip / 풀기: bzx, zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -27,10 +27,10 @@ enum Command {
         /// 압축할 파일 또는 폴더
         #[arg(required = true)]
         inputs: Vec<PathBuf>,
-        /// 출력 파일 (기본: <입력 이름>.pouch 또는 .zip, 입력과 같은 위치)
+        /// 출력 파일 (기본: <입력 이름>.bzx 또는 .zip, 입력과 같은 위치)
         #[arg(short, long)]
         output: Option<PathBuf>,
-        /// 형식: pouch (가장 빠르고 작음, 기본) / zip (어디서나 열림). -o 의 확장자가 .zip이면 zip
+        /// 형식: bzx (Pouch 자체 형식, 가장 빠르고 작음, 기본) / zip (어디서나 열림). -o 의 확장자가 .zip이면 zip
         #[arg(long, value_enum)]
         format: Option<FormatArg>,
         /// 압축 레벨 1~22 (높을수록 작고 느림)
@@ -43,7 +43,7 @@ enum Command {
         #[arg(short, long)]
         force: bool,
     },
-    /// 압축 풀기 (pouch, zip, 7z, tar, tar.gz/bz2/xz/zst, gz/bz2/xz/zst — 형식 자동 감지)
+    /// 압축 풀기 (bzx, zip, 7z, tar, tar.gz/bz2/xz/zst, gz/bz2/xz/zst — 형식 자동 감지)
     #[command(alias = "x")]
     Extract {
         /// 풀 압축 파일
@@ -199,7 +199,7 @@ fn main() -> Result<()> {
             let kind = pouch::foreign::detect(&input)?;
             if kind == ArchiveKind::Pouch {
                 let (h, payload) = read_header(&input)?;
-                println!("형식       : pouch v{} (zstd 레벨 {})", h.version, h.level);
+                println!("형식       : bzx v{} (zstd 레벨 {})", h.version, h.level);
                 println!("항목 수    : {}", h.entry_count);
                 println!("원본 크기  : {}", human(h.total_size));
                 println!("압축 데이터: {}", human(payload));

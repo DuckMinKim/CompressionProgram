@@ -49,9 +49,9 @@ if ($bz) { Write-Host "반디집: $bz" } else { Write-Host "반디집(bz.exe)을
 Write-Host ""
 
 $cases = @()
-$cases += @{ Name = "Pouch (.pouch)"; File = "a.pouch";
-    C = { & $pouch c $Target -o (Join-Path $tmp "a.pouch") -f };
-    X = { & $pouch x (Join-Path $tmp "a.pouch") -o $out --on-conflict overwrite } }
+$cases += @{ Name = "Pouch (.bzx)"; File = "a.bzx";
+    C = { & $pouch c $Target -o (Join-Path $tmp "a.bzx") -f };
+    X = { & $pouch x (Join-Path $tmp "a.bzx") -o $out --on-conflict overwrite } }
 $cases += @{ Name = "Pouch (.zip)"; File = "b.zip";
     C = { & $pouch c $Target -o (Join-Path $tmp "b.zip") --format zip -f };
     X = { & $pouch x (Join-Path $tmp "b.zip") -o $out --on-conflict overwrite } }

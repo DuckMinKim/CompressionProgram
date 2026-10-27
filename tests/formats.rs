@@ -29,7 +29,7 @@ fn noise(len: usize, seed: u32) -> Vec<u8> {
 fn text(len: usize) -> Vec<u8> {
     let words = [
         "압축",
-        "pouch",
+        "bzx",
         "블록",
         "병렬",
         "zip",
@@ -96,7 +96,7 @@ fn assert_same_tree(a: &Path, b: &Path) {
 fn pouch_v3_multiblock_parallel_roundtrip() {
     let dir = tempfile::tempdir().unwrap();
     let root = sample_tree(dir.path());
-    let archive = dir.path().join("a.pouch");
+    let archive = dir.path().join("a.bzx");
     compress_path(&root, &archive, &opts(4, OutFormat::Pouch)).unwrap();
 
     let (h, _) = pouch::read_header(&archive).unwrap();
@@ -115,8 +115,8 @@ fn pouch_same_result_with_any_thread_count() {
     // 스레드 수와 상관없이 같은 파일이 나와야 한다 (블록 순서 보장)
     let dir = tempfile::tempdir().unwrap();
     let root = sample_tree(dir.path());
-    let a1 = dir.path().join("t1.pouch");
-    let a4 = dir.path().join("t4.pouch");
+    let a1 = dir.path().join("t1.bzx");
+    let a4 = dir.path().join("t4.bzx");
     compress_path(&root, &a1, &opts(1, OutFormat::Pouch)).unwrap();
     compress_path(&root, &a4, &opts(4, OutFormat::Pouch)).unwrap();
     assert_eq!(fs::read(&a1).unwrap(), fs::read(&a4).unwrap());
@@ -128,7 +128,7 @@ fn pouch_incompressible_blocks_are_stored() {
     let src = dir.path().join("video.mp4");
     let data = noise(12 << 20, 9);
     fs::write(&src, &data).unwrap();
-    let archive = dir.path().join("v.pouch");
+    let archive = dir.path().join("v.bzx");
     compress_path(&src, &archive, &opts(2, OutFormat::Pouch)).unwrap();
     let size = fs::metadata(&archive).unwrap().len();
     // 저장만 했으므로 원본보다 아주 조금만 크다 (헤더·인덱스)
@@ -142,7 +142,7 @@ fn pouch_incompressible_blocks_are_stored() {
 fn pouch_reads_old_v2_files() {
     // 예전 버전(v2)으로 만든 파일도 열려야 한다
     let dir = tempfile::tempdir().unwrap();
-    let archive = dir.path().join("old.pouch");
+    let archive = dir.path().join("old.bzx");
     let mut f = fs::File::create(&archive).unwrap();
     let body = b"version two".to_vec();
     Header {
@@ -195,7 +195,7 @@ fn many_small_files_parallel_write() {
             .unwrap();
         }
     }
-    let archive = dir.path().join("s.pouch");
+    let archive = dir.path().join("s.bzx");
     compress_path(&root, &archive, &opts(4, OutFormat::Pouch)).unwrap();
     let out = dir.path().join("out");
     let (_, stats) = extract_archive(&archive, Some(&out), Conflict::Stop, |_| {}).unwrap();
@@ -208,7 +208,7 @@ fn pouch_corrupt_index_is_detected() {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("t.txt");
     fs::write(&src, text(6 << 20)).unwrap();
-    let archive = dir.path().join("t.pouch");
+    let archive = dir.path().join("t.bzx");
     compress_path(&src, &archive, &opts(2, OutFormat::Pouch)).unwrap();
     let mut bytes = fs::read(&archive).unwrap();
     let n = bytes.len();
@@ -440,19 +440,20 @@ fn foreign_names_with_windows_forbidden_chars_are_renamed() {
 }
 
 #[test]
-fn opens_files_made_with_old_name_bzx() {
-    // 이름을 바꾸기 전(bzx)에 만든 v3 파일: 매직 넘버 "BZX\0", 인덱스 표시 "BZXI"
+fn opens_files_made_with_pouch_magic() {
+    // 잠시 .pouch 확장자를 쓰던 때 만든 파일: 매직 넘버 "PCH\0", 인덱스 표시 "PCHI"
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("옛 파일.txt");
     fs::write(&src, text(5 << 20)).unwrap();
-    let archive = dir.path().join("옛날.bzx");
+    let archive = dir.path().join("잠깐.pouch");
     compress_path(&src, &archive, &opts(2, OutFormat::Pouch)).unwrap();
     let mut bytes = fs::read(&archive).unwrap();
-    bytes[0..4].copy_from_slice(b"BZX\0");
+    assert_eq!(&bytes[0..4], b"BZX\0");
+    bytes[0..4].copy_from_slice(b"PCH\0");
     let (h, _) = pouch::read_header(&archive).unwrap();
     let at = h.index_offset as usize;
-    assert_eq!(&bytes[at..at + 4], b"PCHI");
-    bytes[at..at + 4].copy_from_slice(b"BZXI");
+    assert_eq!(&bytes[at..at + 4], b"BZXI");
+    bytes[at..at + 4].copy_from_slice(b"PCHI");
     fs::write(&archive, bytes).unwrap();
 
     let out = dir.path().join("out");

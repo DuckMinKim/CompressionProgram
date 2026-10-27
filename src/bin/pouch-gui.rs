@@ -1,4 +1,4 @@
-//! Pouch GUI — 끌어다 놓아서 압축(pouch·zip)하고, 압축 파일(pouch·zip·7z·tar…)을 열어서 푸는 창 프로그램
+//! Pouch GUI — 끌어다 놓아서 압축(bzx·zip)하고, 압축 파일(bzx·zip·7z·tar…)을 열어서 푸는 창 프로그램
 
 // 릴리스 빌드에서는 검은 콘솔 창이 뜨지 않게 한다 (Windows)
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
@@ -21,7 +21,7 @@ static ELEVATED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(pouch::ass
 const WARN: Color32 = Color32::from_rgb(0xd9, 0x8a, 0x1a);
 
 fn main() -> eframe::Result {
-    // 실행 인자로 받은 경로 (탐색기에서 .pouch 더블클릭, exe 위에 끌어다 놓기 등)
+    // 실행 인자로 받은 경로 (탐색기에서 .bzx 더블클릭, exe 위에 끌어다 놓기 등)
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
 
     let options = eframe::NativeOptions {
@@ -140,9 +140,9 @@ enum Action {
     Cancel,
     Reveal(PathBuf),
     Dropped(Vec<PathBuf>),
-    /// 형식(pouch/zip)을 바꿈 → 저장 파일 확장자도 바꾼다
+    /// 형식(bzx/zip)을 바꿈 → 저장 파일 확장자도 바꾼다
     FormatChanged,
-    /// .pouch 파일을 이 프로그램과 연결 (true) / 해제 (false)
+    /// .bzx 파일을 이 프로그램과 연결 (true) / 해제 (false)
     #[cfg_attr(not(windows), allow(dead_code))]
     Associate(bool),
 }
@@ -408,7 +408,7 @@ impl App {
                 if let Some(f) = rfd::FileDialog::new()
                     .set_title("압축 파일 열기")
                     .add_filter(
-                        "압축 파일 (pouch, bzx, zip, 7z, tar, gz, bz2, xz, zst)",
+                        "압축 파일 (bzx, zip, 7z, tar, gz, bz2, xz, zst)",
                         pouch::foreign::SUPPORTED_EXTENSIONS,
                     )
                     .add_filter("모든 파일", &["*"])
@@ -485,7 +485,7 @@ impl App {
 }
 
 impl App {
-    /// .pouch 파일 아이콘·더블클릭 연결 (Windows)
+    /// .bzx 파일 아이콘·더블클릭 연결 (Windows)
     #[cfg(windows)]
     fn associate(&mut self, on: bool) {
         let result = std::env::current_exe()
@@ -500,13 +500,13 @@ impl App {
         self.status = Some(match (result, on) {
             (Ok(()), true) => Status {
                 kind: StatusKind::Ok,
-                text: "이제 .pouch 파일에 Pouch 아이콘이 보이고, 더블클릭하면 Pouch로 열립니다."
+                text: "이제 .bzx 파일에 Pouch 아이콘이 보이고, 더블클릭하면 Pouch로 열립니다."
                     .into(),
                 reveal: None,
             },
             (Ok(()), false) => Status {
                 kind: StatusKind::Info,
-                text: ".pouch 파일 연결을 해제했습니다.".into(),
+                text: ".bzx 파일 연결을 해제했습니다.".into(),
                 reveal: None,
             },
             (Err(e), _) => Status {
@@ -529,14 +529,14 @@ fn settings_menu(ui: &mut egui::Ui, actions: &mut Vec<Action>) {
             .map(|exe| pouch::assoc::is_registered(&exe))
             .unwrap_or(false);
         if registered {
-            ui.label(RichText::new("✔ .pouch 파일이 Pouch와 연결되어 있음").color(OK_GREEN));
+            ui.label(RichText::new("✔ .bzx 파일이 Pouch와 연결되어 있음").color(OK_GREEN));
             if ui.button("연결 해제").clicked() {
                 actions.push(Action::Associate(false));
                 ui.close();
             }
         } else {
             if ui
-                .button(".pouch 파일에 아이콘 붙이고 Pouch로 열기")
+                .button(".bzx 파일에 아이콘 붙이고 Pouch로 열기")
                 .clicked()
             {
                 actions.push(Action::Associate(true));
@@ -768,7 +768,7 @@ fn empty_view(ui: &mut egui::Ui) {
     painter.text(
         center + egui::vec2(0.0, 46.0),
         egui::Align2::CENTER_CENTER,
-        "압축 파일(pouch, zip, 7z, tar, gz…)을 놓으면 압축을 풉니다",
+        "압축 파일(bzx, zip, 7z, tar, gz…)을 놓으면 압축을 풉니다",
         egui::FontId::proportional(14.0),
         stroke_color,
     );
@@ -828,7 +828,7 @@ fn compress_view(
             ui.label("형식");
             ui.horizontal(|ui| {
                 let before = *format;
-                ui.radio_value(format, OutFormat::Pouch, "pouch — 가장 빠르고 작게")
+                ui.radio_value(format, OutFormat::Pouch, "bzx — 가장 빠르고 작게")
                     .on_hover_text("멀티코어 zstd. Pouch로만 열 수 있습니다.");
                 ui.radio_value(format, OutFormat::Zip, "zip — 어디서나 열림")
                     .on_hover_text(
