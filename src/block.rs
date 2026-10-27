@@ -185,8 +185,9 @@ fn compress_block(
 
 /// 블록이 이미 압축된 데이터처럼 보이는지 빠르게 추정한다.
 ///
-/// 바이트 분포의 엔트로피가 8비트에 가깝고, 앞부분 64KB를 가장 빠른 레벨로 압축해도
-/// 3% 넘게 줄지 않으면 "압축 불가"로 본다.
+/// 바이트 분포의 엔트로피가 8비트에 가깝고, 블록 전체를 가장 빠른 레벨로 압축해 봐도
+/// 2% 넘게 줄지 않으면 "압축 불가"로 본다. 확장자는 믿지 않는다 — 화면 녹화 mp4처럼
+/// "이미 압축된 형식"인데도 15%씩 줄어드는 파일이 실제로 있다.
 pub fn looks_incompressible(data: &[u8]) -> bool {
     if data.len() < 256 * 1024 {
         return false;
@@ -209,9 +210,11 @@ pub fn looks_incompressible(data: &[u8]) -> bool {
     if entropy < 7.9 {
         return false;
     }
-    let sample = &data[..64 * 1024];
-    match zstd::bulk::compress(sample, 1) {
-        Ok(c) => c.len() as f64 > sample.len() as f64 * 0.97,
+    // 바이트 분포만으로는 부족하다: 화면 녹화 영상처럼 바이트는 무작위해 보여도
+    // 수십 KB 떨어진 곳에 반복이 있어 15%씩 줄어드는 데이터가 있다.
+    // 그래서 의심되는 블록만 "전체"를 가장 빠른 레벨로 시험 압축해 본다 (블록당 수 ms).
+    match zstd::bulk::compress(data, 1) {
+        Ok(c) => c.len() as f64 > data.len() as f64 * 0.98,
         Err(_) => false,
     }
 }

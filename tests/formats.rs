@@ -461,3 +461,31 @@ fn opens_files_made_with_pouch_magic() {
     assert_eq!(info.kind, ArchiveKind::Pouch);
     assert_eq!(fs::read(out.join("옛 파일.txt")).unwrap(), text(5 << 20));
 }
+
+#[test]
+fn compressible_video_like_blocks_are_not_skipped() {
+    // 바이트는 무작위처럼 보이지만(엔트로피 높음) 수십 KB 떨어진 곳에 반복이 있는 데이터:
+    // 예전 표본 검사는 이걸 "압축 불가"로 잘못 판단해 그대로 저장했다 (화면 녹화 mp4에서 발견)
+    // 반복 간격 24KB: Deflate가 볼 수 있는 32KB 안이지만, 예전 16KB 표본으로는 보이지 않는 거리
+    let unit = noise(20 * 1024, 5);
+    let mut data = Vec::new();
+    let mut i = 0u32;
+    while data.len() < 8 << 20 {
+        data.extend_from_slice(&unit);
+        data.extend_from_slice(&noise(4 * 1024, 100 + i)); // 반복 사이에 다른 데이터
+        i += 1;
+    }
+    assert!(!pouch::block_looks_incompressible_for_test(&data[..4 << 20]));
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("screen.mp4");
+    fs::write(&src, &data).unwrap();
+    for (fmt, name) in [(OutFormat::Pouch, "v.bzx"), (OutFormat::Zip, "v.zip")] {
+        let archive = dir.path().join(name);
+        compress_path(&src, &archive, &opts(2, fmt)).unwrap();
+        let size = fs::metadata(&archive).unwrap().len();
+        assert!(
+            size < data.len() as u64 * 3 / 4,
+            "{name}: {size} — 반복을 못 찾고 그대로 저장됨"
+        );
+    }
+}

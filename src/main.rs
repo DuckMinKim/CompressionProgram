@@ -70,6 +70,8 @@ enum Command {
 
 #[derive(Clone, Copy, clap::ValueEnum)]
 enum FormatArg {
+    /// Pouch 자체 형식 (.bzx)
+    #[value(name = "bzx", alias = "pouch")]
     Pouch,
     Zip,
 }

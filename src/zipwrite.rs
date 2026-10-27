@@ -5,7 +5,8 @@
 //! - 조각마다 앞 조각의 마지막 32KB를 "사전"으로 미리 넣어서 압축률 손해를 거의 없앤다.
 //! - 마지막이 아닌 조각은 바이트 경계에서 끝나게(sync flush) 압축해서, 결과를 이어 붙이면
 //!   하나의 올바른 Deflate 스트림이 된다. 그래서 어떤 zip 프로그램으로도 열린다.
-//! - 사진·영상처럼 이미 압축된 파일은 "저장(store)" 방식으로 그대로 넣는다.
+//! - 압축이 안 되는 조각(이미 압축된 사진·영상의 대부분)은 조각마다 감지해서 압축 없이 넣는다.
+//!   확장자로 판단하지 않는다 — 화면 녹화 mp4처럼 "압축된 형식"인데 잘 줄어드는 파일도 있다.
 //!
 //! zip 구조 (APPNOTE.TXT): [로컬 헤더 + 데이터] × N → [중앙 디렉터리] → [끝 레코드]
 //! 4GB가 넘는 파일·위치·65535개 넘는 항목은 zip64 확장을 쓴다.
@@ -28,13 +29,6 @@ const DICT: usize = 32 * 1024;
 const ZIP64_FILE: u64 = 0xF000_0000;
 /// 데이터가 이보다 작으면 메모리에 모았다가 헤더와 함께 한 번에 쓴다 (되감기 없이)
 const BUFFER_ENTRY: usize = 4 << 20;
-
-/// 이미 압축된 형식 — 다시 압축해 봐야 시간만 든다
-const STORE_EXT: &[&str] = &[
-    "jpg", "jpeg", "png", "gif", "webp", "heic", "avif", "mp4", "mkv", "mov", "avi", "webm", "mp3",
-    "aac", "m4a", "ogg", "opus", "flac", "zip", "7z", "rar", "gz", "tgz", "bz2", "xz", "zst",
-    "bzx", "pouch", "docx", "xlsx", "pptx", "hwpx", "jar", "apk",
-];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Method {
@@ -75,7 +69,7 @@ type Done = (u64, io::Result<Piece>);
 fn deflate_level(level: i32) -> u32 {
     match level {
         ..=2 => 1,
-        3..=5 => 6,
+        3..=5 => 5, // 반디집 기본값과 같은 레벨
         6..=12 => 7,
         _ => 9,
     }
@@ -155,16 +149,9 @@ fn produce(
                 );
 
                 let mut chunk = read_chunk(&mut reader)?;
-                let ext = e
-                    .path
-                    .extension()
-                    .and_then(|x| x.to_str())
-                    .map(|x| x.to_ascii_lowercase())
-                    .unwrap_or_default();
-                let method = if size == 0
-                    || STORE_EXT.contains(&ext.as_str())
-                    || crate::block::looks_incompressible(&chunk)
-                {
+                // 빈 파일만 "저장". 나머지는 Deflate로 하되, 압축이 안 되는 조각은
+                // 작업 스레드가 조각마다 판단해서 압축 없이(레벨 0) 넣는다
+                let method = if size == 0 {
                     Method::Store
                 } else {
                     Method::Deflate
@@ -243,6 +230,12 @@ fn deflate_worker(jobs: Arc<Mutex<Receiver<Job>>>, done: SyncSender<Done>, level
 /// 조각 하나를 raw Deflate로 압축한다.
 /// 마지막 조각은 스트림을 끝내고(Finish), 나머지는 바이트 경계에서 끊는다(Sync).
 fn deflate_chunk(job: &Job, level: u32) -> io::Result<Vec<u8>> {
+    // 압축이 안 되는 조각은 레벨 0(압축 없이 Deflate의 "저장 블록"으로)으로 빠르게 넘긴다
+    let level = if crate::block::looks_incompressible(&job.data) {
+        0
+    } else {
+        level
+    };
     let mut c = Compress::new(Compression::new(level), false);
     if let Some(d) = &job.dict {
         c.set_dictionary(d).map_err(io::Error::other)?;

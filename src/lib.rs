@@ -25,6 +25,12 @@ use walkdir::WalkDir;
 
 pub use foreign::ArchiveKind;
 
+/// 테스트용: 블록이 "압축 불가"로 판단되는지
+#[doc(hidden)]
+pub fn block_looks_incompressible_for_test(data: &[u8]) -> bool {
+    block::looks_incompressible(data)
+}
+
 /// 입출력 버퍼 크기 (1 MiB)
 pub(crate) const BUF_SIZE: usize = 1 << 20;
 

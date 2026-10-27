@@ -2,3 +2,7 @@
 *.pouch
 *.bzx
 /bench-tmp
+/bench-result.md
+
+# 개인 자료 (테스트용으로 둔 폴더 — 저장소에 올리지 않음)
+/대학교/
