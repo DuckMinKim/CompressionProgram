@@ -1,3 +1,4 @@
 /target
+*.pouch
 *.bzx
 /bench-tmp

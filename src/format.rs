@@ -1,9 +1,9 @@
-//! .bzx 아카이브 포맷 (버전 3, 버전 2 읽기 지원)
+//! .pouch 아카이브 포맷 (버전 3, 버전 2 읽기 지원)
 //!
 //! ```text
 //! [헤더 32바이트 — 압축 안 됨]
 //! offset  size  내용
-//! 0       4     매직 넘버 "BZX\0"
+//! 0       4     매직 넘버 "PCH\0" (예전 이름 bzx 시절 파일은 "BZX\0")
 //! 4       1     포맷 버전 (3)
 //! 5       1     코덱 ID (1 = zstd)
 //! 6       1     압축 레벨
@@ -31,7 +31,7 @@
 //!     이미 압축된 데이터(사진·영상 등)로 보이는 블록은 압축하지 않고 그대로 저장한다.
 //!
 //! [블록 인덱스 — v3, 파일 맨 끝]
-//!   "BZXI" (4)  블록 수 (u32 LE)
+//!   "PCHI" (4)  블록 수 (u32 LE)
 //!   블록마다: 압축 크기 (u32) · 원본 크기 (u32) · 플래그 (u8: 0 = zstd, 1 = 그대로 저장)
 //! ```
 //!
@@ -43,7 +43,9 @@ use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-pub const MAGIC: [u8; 4] = *b"BZX\0";
+pub const MAGIC: [u8; 4] = *b"PCH\0";
+/// 예전 이름(bzx)으로 만든 파일의 매직 넘버 — 계속 읽을 수 있다
+pub const LEGACY_MAGIC: [u8; 4] = *b"BZX\0";
 /// 새로 만드는 파일의 버전
 pub const VERSION: u8 = 3;
 /// 읽을 수 있는 가장 오래된 버전
@@ -79,9 +81,9 @@ impl Header {
     pub fn read_from<R: Read>(r: &mut R) -> Result<Self> {
         let mut buf = [0u8; HEADER_SIZE as usize];
         r.read_exact(&mut buf)
-            .map_err(|_| anyhow::anyhow!("BZX 파일이 아니거나 너무 짧습니다"))?;
-        if buf[0..4] != MAGIC {
-            bail!("BZX 파일이 아닙니다 (매직 넘버 불일치)");
+            .map_err(|_| anyhow::anyhow!("Pouch 파일이 아니거나 너무 짧습니다"))?;
+        if buf[0..4] != MAGIC && buf[0..4] != LEGACY_MAGIC {
+            bail!("Pouch 파일이 아닙니다 (매직 넘버 불일치)");
         }
         if !(MIN_VERSION..=VERSION).contains(&buf[4]) {
             bail!(
@@ -228,7 +230,7 @@ pub fn safe_relative_path(archive_path: &str) -> Result<PathBuf> {
     Ok(out)
 }
 
-/// 다른 프로그램이 만든 압축 파일(zip, tar 등)의 경로를 bzx 규칙으로 정리한다.
+/// 다른 프로그램이 만든 압축 파일(zip, tar 등)의 경로를 Pouch 규칙으로 정리한다.
 /// - 윈도우식 `\` → `/`
 /// - 맨 앞 `/` 제거 (tar의 절대 경로는 GNU tar처럼 상대 경로로 바꿔 푼다)
 /// - `./` 와 빈 조각 제거, 끝의 `/` 제거

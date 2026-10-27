@@ -1,4 +1,4 @@
-//! 블록 병렬 압축/해제 — bzx v3의 핵심
+//! 블록 병렬 압축/해제 — Pouch 포맷(v3)의 핵심
 //!
 //! 압축: 항목 스트림을 4MB 블록으로 잘라 작업 스레드들이 동시에 압축하고,
 //!       출력 스레드가 원래 순서대로 이어 붙인다.
@@ -362,7 +362,9 @@ impl Read for BlockReader {
 
 // ───────────────────────────── 인덱스 ─────────────────────────────
 
-const INDEX_MAGIC: [u8; 4] = *b"BZXI";
+const INDEX_MAGIC: [u8; 4] = *b"PCHI";
+/// 예전 이름(bzx)으로 만든 파일의 인덱스 표시
+const LEGACY_INDEX_MAGIC: [u8; 4] = *b"BZXI";
 
 pub fn write_index<W: Write>(w: &mut W, metas: &[BlockMeta]) -> io::Result<()> {
     w.write_all(&INDEX_MAGIC)?;
@@ -379,7 +381,7 @@ pub fn read_index<R: Read>(r: &mut R) -> io::Result<Vec<BlockMeta>> {
     let bad = || io::Error::other("블록 인덱스가 손상되었습니다");
     let mut head = [0u8; 8];
     r.read_exact(&mut head).map_err(|_| bad())?;
-    if head[0..4] != INDEX_MAGIC {
+    if head[0..4] != INDEX_MAGIC && head[0..4] != LEGACY_INDEX_MAGIC {
         return Err(bad());
     }
     let count = u32::from_le_bytes(head[4..8].try_into().unwrap()) as usize;

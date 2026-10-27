@@ -1,11 +1,11 @@
-//! bzx GUI — 끌어다 놓아서 압축(bzx·zip)하고, 압축 파일(bzx·zip·7z·tar…)을 열어서 푸는 창 프로그램
+//! Pouch GUI — 끌어다 놓아서 압축(pouch·zip)하고, 압축 파일(pouch·zip·7z·tar…)을 열어서 푸는 창 프로그램
 
 // 릴리스 빌드에서는 검은 콘솔 창이 뜨지 않게 한다 (Windows)
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
-use bzx::format::{EntryHeader, EntryKind};
-use bzx::{ArchiveInfo, CompressOptions, Conflict, Control, OutFormat, human_size};
 use eframe::egui::{self, Color32, RichText};
+use pouch::format::{EntryHeader, EntryKind};
+use pouch::{ArchiveInfo, CompressOptions, Conflict, Control, OutFormat, human_size};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,26 +16,28 @@ const ACCENT: Color32 = Color32::from_rgb(0x2f, 0x6f, 0xeb);
 const OK_GREEN: Color32 = Color32::from_rgb(0x1f, 0x9d, 0x55);
 const ERR_RED: Color32 = Color32::from_rgb(0xd9, 0x3a, 0x3a);
 /// 시작할 때 한 번만 확인 (관리자 권한 여부는 실행 중에 바뀌지 않음)
-static ELEVATED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(bzx::assoc::is_elevated);
+static ELEVATED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(pouch::assoc::is_elevated);
 
 const WARN: Color32 = Color32::from_rgb(0xd9, 0x8a, 0x1a);
 
 fn main() -> eframe::Result {
-    // 실행 인자로 받은 경로 (탐색기에서 .bzx 더블클릭, exe 위에 끌어다 놓기 등)
+    // 실행 인자로 받은 경로 (탐색기에서 .pouch 더블클릭, exe 위에 끌어다 놓기 등)
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("bzx 압축 프로그램")
+            .with_title("Pouch")
             .with_inner_size([720.0, 580.0])
             .with_min_inner_size([520.0, 440.0])
             .with_drag_and_drop(true)
-            .with_icon(eframe::icon_data::from_png_bytes(bzx::assoc::ICON_PNG).unwrap_or_default()),
+            .with_icon(
+                eframe::icon_data::from_png_bytes(pouch::assoc::ICON_PNG).unwrap_or_default(),
+            ),
         ..Default::default()
     };
 
     eframe::run_native(
-        "bzx",
+        "pouch",
         options,
         Box::new(move |cc| {
             setup_fonts(&cc.egui_ctx);
@@ -138,9 +140,9 @@ enum Action {
     Cancel,
     Reveal(PathBuf),
     Dropped(Vec<PathBuf>),
-    /// 형식(bzx/zip)을 바꿈 → 저장 파일 확장자도 바꾼다
+    /// 형식(pouch/zip)을 바꿈 → 저장 파일 확장자도 바꾼다
     FormatChanged,
-    /// .bzx 파일을 이 프로그램과 연결 (true) / 해제 (false)
+    /// .pouch 파일을 이 프로그램과 연결 (true) / 해제 (false)
     #[cfg_attr(not(windows), allow(dead_code))]
     Associate(bool),
 }
@@ -183,7 +185,7 @@ impl App {
     fn refresh_default_output(&mut self) {
         if let Mode::Compress(s) = &mut self.mode
             && !s.output_custom
-            && let Ok(p) = bzx::default_archive_path_for(&s.inputs, self.format)
+            && let Ok(p) = pouch::default_archive_path_for(&s.inputs, self.format)
         {
             s.output = p;
         }
@@ -193,7 +195,7 @@ impl App {
         let (tx, rx) = mpsc::channel();
         let path = archive.clone();
         std::thread::spawn(move || {
-            let r = bzx::list_archive(&path)
+            let r = pouch::list_archive(&path)
                 .map(|(h, e)| {
                     let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
                     (h, e, size)
@@ -231,15 +233,15 @@ impl App {
         let (c2, t2, ctx2) = (control.clone(), total.clone(), ctx.clone());
 
         std::thread::spawn(move || {
-            t2.store(bzx::scan_total_size(&inputs), Ordering::Relaxed);
+            t2.store(pouch::scan_total_size(&inputs), Ordering::Relaxed);
             let start = Instant::now();
             let opts = CompressOptions {
                 level,
-                threads: bzx::num_threads(),
+                threads: pouch::num_threads(),
                 control: Some(c2),
                 format,
             };
-            let result = match bzx::compress_paths(&inputs, &output, &opts) {
+            let result = match pouch::compress_paths(&inputs, &output, &opts) {
                 Ok(stats) => {
                     let secs = start.elapsed().as_secs_f64();
                     let compressed = std::fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
@@ -255,7 +257,7 @@ impl App {
                         reveal: output,
                     }
                 }
-                Err(e) if bzx::is_cancelled_error(&e) => {
+                Err(e) if pouch::is_cancelled_error(&e) => {
                     JobResult::Cancelled("압축을 취소했습니다.".into())
                 }
                 Err(e) => JobResult::Failed(format!("{e:#}")),
@@ -301,7 +303,7 @@ impl App {
 
         std::thread::spawn(move || {
             let start = Instant::now();
-            let result = match bzx::extract_archive_with(
+            let result = match pouch::extract_archive_with(
                 &archive,
                 Some(&target),
                 conflict,
@@ -326,7 +328,7 @@ impl App {
                         reveal: target,
                     }
                 }
-                Err(e) if bzx::is_cancelled_error(&e) => JobResult::Cancelled(
+                Err(e) if pouch::is_cancelled_error(&e) => JobResult::Cancelled(
                     "압축 풀기를 취소했습니다. 이미 풀린 파일은 남아 있습니다.".into(),
                 ),
                 Err(e) => JobResult::Failed(format!("{e:#}")),
@@ -406,8 +408,8 @@ impl App {
                 if let Some(f) = rfd::FileDialog::new()
                     .set_title("압축 파일 열기")
                     .add_filter(
-                        "압축 파일 (bzx, zip, 7z, tar, gz, bz2, xz, zst)",
-                        bzx::foreign::SUPPORTED_EXTENSIONS,
+                        "압축 파일 (pouch, bzx, zip, 7z, tar, gz, bz2, xz, zst)",
+                        pouch::foreign::SUPPORTED_EXTENSIONS,
                     )
                     .add_filter("모든 파일", &["*"])
                     .pick_file()
@@ -483,27 +485,28 @@ impl App {
 }
 
 impl App {
-    /// .bzx 파일 아이콘·더블클릭 연결 (Windows)
+    /// .pouch 파일 아이콘·더블클릭 연결 (Windows)
     #[cfg(windows)]
     fn associate(&mut self, on: bool) {
         let result = std::env::current_exe()
             .map_err(anyhow::Error::from)
             .and_then(|exe| {
                 if on {
-                    bzx::assoc::register(&exe)
+                    pouch::assoc::register(&exe)
                 } else {
-                    bzx::assoc::unregister()
+                    pouch::assoc::unregister()
                 }
             });
         self.status = Some(match (result, on) {
             (Ok(()), true) => Status {
                 kind: StatusKind::Ok,
-                text: "이제 .bzx 파일에 bzx 아이콘이 보이고, 더블클릭하면 bzx로 열립니다.".into(),
+                text: "이제 .pouch 파일에 Pouch 아이콘이 보이고, 더블클릭하면 Pouch로 열립니다."
+                    .into(),
                 reveal: None,
             },
             (Ok(()), false) => Status {
                 kind: StatusKind::Info,
-                text: ".bzx 파일 연결을 해제했습니다.".into(),
+                text: ".pouch 파일 연결을 해제했습니다.".into(),
                 reveal: None,
             },
             (Err(e), _) => Status {
@@ -523,16 +526,19 @@ fn settings_menu(ui: &mut egui::Ui, actions: &mut Vec<Action>) {
     #[cfg(windows)]
     {
         let registered = std::env::current_exe()
-            .map(|exe| bzx::assoc::is_registered(&exe))
+            .map(|exe| pouch::assoc::is_registered(&exe))
             .unwrap_or(false);
         if registered {
-            ui.label(RichText::new("✔ .bzx 파일이 bzx와 연결되어 있음").color(OK_GREEN));
+            ui.label(RichText::new("✔ .pouch 파일이 Pouch와 연결되어 있음").color(OK_GREEN));
             if ui.button("연결 해제").clicked() {
                 actions.push(Action::Associate(false));
                 ui.close();
             }
         } else {
-            if ui.button(".bzx 파일에 아이콘 붙이고 bzx로 열기").clicked() {
+            if ui
+                .button(".pouch 파일에 아이콘 붙이고 Pouch로 열기")
+                .clicked()
+            {
                 actions.push(Action::Associate(true));
                 ui.close();
             }
@@ -615,7 +621,7 @@ impl eframe::App for App {
                         egui::Label::new(
                             RichText::new(
                                 "⚠ 관리자 권한으로 실행 중이라 윈도우가 끌어다 놓기를 막고 있습니다. \
-                                 일반 PowerShell에서 실행하거나 탐색기에서 bzx-gui.exe를 더블클릭해 주세요. \
+                                 일반 PowerShell에서 실행하거나 탐색기에서 pouch-gui.exe를 더블클릭해 주세요. \
                                  (위의 추가 버튼은 그대로 쓸 수 있어요)",
                             )
                             .color(Color32::from_rgb(0x7a, 0x4a, 0x00)),
@@ -762,7 +768,7 @@ fn empty_view(ui: &mut egui::Ui) {
     painter.text(
         center + egui::vec2(0.0, 46.0),
         egui::Align2::CENTER_CENTER,
-        "압축 파일(bzx, zip, 7z, tar, gz…)을 놓으면 압축을 풉니다",
+        "압축 파일(pouch, zip, 7z, tar, gz…)을 놓으면 압축을 풉니다",
         egui::FontId::proportional(14.0),
         stroke_color,
     );
@@ -822,8 +828,8 @@ fn compress_view(
             ui.label("형식");
             ui.horizontal(|ui| {
                 let before = *format;
-                ui.radio_value(format, OutFormat::Bzx, "bzx — 가장 빠르고 작게")
-                    .on_hover_text("멀티코어 zstd. bzx로만 열 수 있습니다.");
+                ui.radio_value(format, OutFormat::Pouch, "pouch — 가장 빠르고 작게")
+                    .on_hover_text("멀티코어 zstd. Pouch로만 열 수 있습니다.");
                 ui.radio_value(format, OutFormat::Zip, "zip — 어디서나 열림")
                     .on_hover_text(
                         "윈도우 탐색기·반디집 등 어디서나 열립니다. 멀티코어로 압축합니다.",
@@ -1048,14 +1054,14 @@ fn extract_target(s: &ExtractState, conflict: Conflict) -> PathBuf {
     }
     let dir = s.out_dir.join(archive_stem(&s.archive));
     if conflict == Conflict::Rename {
-        bzx::unique_path(&dir)
+        pouch::unique_path(&dir)
     } else {
         dir
     }
 }
 
 fn is_archive(p: &Path) -> bool {
-    bzx::foreign::has_archive_extension(p)
+    pouch::foreign::has_archive_extension(p)
 }
 
 /// "사진.zip" → "사진", "백업.tar.gz" → "백업"

@@ -33,7 +33,7 @@ const BUFFER_ENTRY: usize = 4 << 20;
 const STORE_EXT: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "webp", "heic", "avif", "mp4", "mkv", "mov", "avi", "webm", "mp3",
     "aac", "m4a", "ogg", "opus", "flac", "zip", "7z", "rar", "gz", "tgz", "bz2", "xz", "zst",
-    "bzx", "docx", "xlsx", "pptx", "hwpx", "jar", "apk",
+    "pouch", "bzx", "docx", "xlsx", "pptx", "hwpx", "jar", "apk",
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -71,7 +71,7 @@ struct Job {
 
 type Done = (u64, io::Result<Piece>);
 
-/// bzx 레벨(1~22) → Deflate 레벨(1~9)
+/// Pouch 레벨(1~22) → Deflate 레벨(1~9)
 fn deflate_level(level: i32) -> u32 {
     match level {
         ..=2 => 1,

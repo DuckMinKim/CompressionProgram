@@ -1,14 +1,14 @@
-//! bzx 압축 엔진
+//! Pouch 압축 엔진
 //!
-//! - `.bzx` (자체 포맷): 블록 병렬 zstd — 압축·해제 모두 멀티코어
+//! - `.pouch` (자체 포맷): 블록 병렬 zstd — 압축·해제 모두 멀티코어
 //! - `.zip` 만들기: 블록 병렬 Deflate — 어디서나 열리는 zip을 멀티코어로
-//! - 풀기: bzx, zip, 7z, tar, tar.gz/bz2/xz/zst, 단일 .gz/.bz2/.xz/.zst
+//! - 풀기: pouch(.bzx 포함), zip, 7z, tar, tar.gz/bz2/xz/zst, 단일 .gz/.bz2/.xz/.zst
 
 pub mod assoc;
 mod block;
-mod bzx;
 pub mod foreign;
 pub mod format;
+mod native;
 mod sink;
 mod zipwrite;
 
@@ -51,9 +51,9 @@ impl Control {
 /// 만들 압축 파일 형식
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutFormat {
-    /// 자체 포맷: 가장 빠르고 작다. bzx로만 열린다.
+    /// 자체 포맷: 가장 빠르고 작다. Pouch로만 열린다.
     #[default]
-    Bzx,
+    Pouch,
     /// zip: 윈도우 탐색기·반디집 등 어디서나 열린다.
     Zip,
 }
@@ -61,7 +61,7 @@ pub enum OutFormat {
 impl OutFormat {
     pub fn extension(self) -> &'static str {
         match self {
-            OutFormat::Bzx => "bzx",
+            OutFormat::Pouch => "pouch",
             OutFormat::Zip => "zip",
         }
     }
@@ -83,7 +83,7 @@ impl Default for CompressOptions {
             level: 3,
             threads: num_threads(),
             control: None,
-            format: OutFormat::Bzx,
+            format: OutFormat::Pouch,
         }
     }
 }
@@ -323,9 +323,9 @@ pub fn scan_total_size(inputs: &[PathBuf]) -> u64 {
         .sum()
 }
 
-/// 기본 출력 경로 (.bzx): 하나면 "사진" → "사진.bzx", 여러 개면 "<부모 폴더 이름>.bzx"
+/// 기본 출력 경로 (.pouch): 하나면 "사진" → "사진.pouch", 여러 개면 "<부모 폴더 이름>.pouch"
 pub fn default_archive_path(inputs: &[PathBuf]) -> Result<PathBuf> {
-    default_archive_path_for(inputs, OutFormat::Bzx)
+    default_archive_path_for(inputs, OutFormat::Pouch)
 }
 
 /// 형식에 맞는 기본 출력 경로: "사진" → "사진.zip"
@@ -353,11 +353,11 @@ pub fn compress_path(input: &Path, output: &Path, opts: &CompressOptions) -> Res
     compress_paths(&[input.to_path_buf()], output, opts)
 }
 
-/// 여러 파일·폴더를 하나의 압축 파일로 만든다 (`opts.format`: bzx 또는 zip).
+/// 여러 파일·폴더를 하나의 압축 파일로 만든다 (`opts.format`: pouch 또는 zip).
 /// 실패하거나 취소되면 만들던 파일을 지운다.
 pub fn compress_paths(inputs: &[PathBuf], output: &Path, opts: &CompressOptions) -> Result<Stats> {
     let result = match opts.format {
-        OutFormat::Bzx => bzx::compress(inputs, output, opts),
+        OutFormat::Pouch => native::compress(inputs, output, opts),
         OutFormat::Zip => zipwrite::compress(inputs, output, opts),
     };
     if result.is_err() {
@@ -373,7 +373,7 @@ pub struct EntryInfo<'a> {
     pub header: &'a EntryHeader,
 }
 
-/// 압축 파일을 풀어서 `out_dir` 아래에 만든다. 형식(bzx, zip, 7z, tar…)은 자동으로 알아낸다.
+/// 압축 파일을 풀어서 `out_dir` 아래에 만든다. 형식(pouch, zip, 7z, tar…)은 자동으로 알아낸다.
 /// `out_dir`이 `None`이면 아무것도 쓰지 않고 검증만 한다 (테스트용).
 pub fn extract_archive(
     input: &Path,
@@ -395,7 +395,7 @@ pub fn extract_archive_with(
     let kind = foreign::detect(input)?;
     let mut sink = sink::Sink::new(out_dir, conflict, control.clone())?;
     let info = match kind {
-        ArchiveKind::Bzx => bzx::extract(input, &mut sink, control, on_entry)?,
+        ArchiveKind::Pouch => native::extract(input, &mut sink, control, on_entry)?,
         other => foreign::extract(input, other, &mut sink, on_entry)?,
     };
     let stats = sink.finish()?;
@@ -403,7 +403,7 @@ pub fn extract_archive_with(
 }
 
 /// 압축 파일 안의 항목 목록을 읽는다.
-/// zip·7z는 목차만 읽어서 빠르고, bzx·tar 계열은 끝까지 읽으며 손상 여부도 검사한다.
+/// zip·7z는 목차만 읽어서 빠르고, pouch·tar 계열은 끝까지 읽으며 손상 여부도 검사한다.
 pub fn list_archive(input: &Path) -> Result<(ArchiveInfo, Vec<EntryHeader>)> {
     let kind = foreign::detect(input)?;
     match kind {
@@ -418,7 +418,7 @@ pub fn list_archive(input: &Path) -> Result<(ArchiveInfo, Vec<EntryHeader>)> {
     }
 }
 
-/// bzx 헤더 정보만 읽는다 (`info` 명령용). (헤더, 압축 데이터 크기)
+/// Pouch 헤더 정보만 읽는다 (`info` 명령용). (헤더, 압축 데이터 크기)
 pub fn read_header(input: &Path) -> Result<(format::Header, u64)> {
     let mut f = fs::File::open(input)?;
     let size = f.metadata()?.len();

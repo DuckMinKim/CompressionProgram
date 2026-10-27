@@ -1,14 +1,14 @@
 ﻿<#
 .SYNOPSIS
-  bzx와 반디집의 압축·해제 속도와 크기를 같은 폴더로 비교한다.
+  Pouch와 반디집의 압축·해제 속도와 크기를 같은 폴더로 비교한다.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File tools\bench.ps1 -Target "D:\사진"
   powershell -ExecutionPolicy Bypass -File tools\bench.ps1 -Target "D:\GitHub\some-project" -Runs 5
 
 .NOTES
-  - 먼저 cargo build --release 로 bzx.exe를 만들어 두어야 한다.
-  - 반디집(bz.exe)이 없으면 bzx끼리만 비교한다.
+  - 먼저 cargo build --release 로 pouch.exe를 만들어 두어야 한다.
+  - 반디집(bz.exe)이 없으면 Pouch끼리만 비교한다.
   - 결과는 표로 보여 주고 bench-result.md 로도 저장한다 (README에 붙여 넣기 좋게).
   - 측정마다 출력 폴더를 비우고, 각 항목을 Runs번 재서 중간값을 쓴다.
 #>
@@ -19,8 +19,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
-$bzx = Join-Path $root "target\release\bzx.exe"
-if (-not (Test-Path $bzx)) { throw "bzx.exe가 없습니다. 먼저 'cargo build --release'를 실행하세요: $bzx" }
+$pouch = Join-Path $root "target\release\pouch.exe"
+if (-not (Test-Path $pouch)) { throw "pouch.exe가 없습니다. 먼저 'cargo build --release'를 실행하세요: $pouch" }
 $Target = (Resolve-Path $Target).Path
 $name = Split-Path -Leaf $Target
 
@@ -45,16 +45,16 @@ function Tree-Summary($dir) {
 $expected = Tree-Summary $Target
 Write-Host "대상: $Target  ($expected)" -ForegroundColor Cyan
 Write-Host "CPU 스레드: $([Environment]::ProcessorCount)   반복: $Runs 번 (중간값)"
-if ($bz) { Write-Host "반디집: $bz" } else { Write-Host "반디집(bz.exe)을 찾지 못해 bzx만 측정합니다." -ForegroundColor Yellow }
+if ($bz) { Write-Host "반디집: $bz" } else { Write-Host "반디집(bz.exe)을 찾지 못해 Pouch만 측정합니다." -ForegroundColor Yellow }
 Write-Host ""
 
 $cases = @()
-$cases += @{ Name = "bzx (.bzx)"; File = "a.bzx";
-    C = { & $bzx c $Target -o (Join-Path $tmp "a.bzx") -f };
-    X = { & $bzx x (Join-Path $tmp "a.bzx") -o $out --on-conflict overwrite } }
-$cases += @{ Name = "bzx (.zip)"; File = "b.zip";
-    C = { & $bzx c $Target -o (Join-Path $tmp "b.zip") --format zip -f };
-    X = { & $bzx x (Join-Path $tmp "b.zip") -o $out --on-conflict overwrite } }
+$cases += @{ Name = "Pouch (.pouch)"; File = "a.pouch";
+    C = { & $pouch c $Target -o (Join-Path $tmp "a.pouch") -f };
+    X = { & $pouch x (Join-Path $tmp "a.pouch") -o $out --on-conflict overwrite } }
+$cases += @{ Name = "Pouch (.zip)"; File = "b.zip";
+    C = { & $pouch c $Target -o (Join-Path $tmp "b.zip") --format zip -f };
+    X = { & $pouch x (Join-Path $tmp "b.zip") -o $out --on-conflict overwrite } }
 if ($bz) {
     $cases += @{ Name = "반디집 (.zip)"; File = "c.zip";
         C = { & $bz c -y -l:5 -fmt:zip (Join-Path $tmp "c.zip") $Target };
@@ -86,12 +86,12 @@ foreach ($case in $cases) {
     }
 }
 
-# 호환성: bzx가 만든 zip을 반디집으로 풀어 본다
+# 호환성: Pouch가 만든 zip을 반디집으로 풀어 본다
 if ($bz) {
     Reset-Out
     & $bz x -y "-o:$out" (Join-Path $tmp "b.zip") | Out-Null
     $got = Tree-Summary (Join-Path $out $name)
-    $compat = if ($got -eq $expected) { "OK — 반디집이 bzx가 만든 zip을 정상적으로 풉니다" } else { "문제 있음 ($got)" }
+    $compat = if ($got -eq $expected) { "OK — 반디집이 Pouch가 만든 zip을 정상적으로 풉니다" } else { "문제 있음 ($got)" }
 }
 
 Write-Host ""

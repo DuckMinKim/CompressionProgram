@@ -1,18 +1,19 @@
-//! Windows 파일 연결 — `.bzx` 파일에 아이콘을 붙이고, 더블클릭하면 bzx로 열리게 한다.
+//! Windows 파일 연결 — `.pouch` 파일에 아이콘을 붙이고, 더블클릭하면 Pouch로 열리게 한다.
+//! 예전 이름의 `.bzx` 파일도 같이 연결한다.
 //!
 //! 관리자 권한 없이 현재 사용자 영역(HKEY_CURRENT_USER\Software\Classes)에만 쓴다.
 //!
 //! ```text
-//! HKCU\Software\Classes\.bzx                         (기본값) = "bzx.archive"
-//! HKCU\Software\Classes\bzx.archive                  (기본값) = "bzx 압축 파일"
-//! HKCU\Software\Classes\bzx.archive\DefaultIcon      (기본값) = "...\bzx\bzx.ico",0
-//! HKCU\Software\Classes\bzx.archive\shell\open\command (기본값) = "...\bzx-gui.exe" "%1"
+//! HKCU\Software\Classes\.pouch                         (기본값) = "pouch.archive"   (.bzx도 같음)
+//! HKCU\Software\Classes\pouch.archive                (기본값) = "Pouch 압축 파일"
+//! HKCU\Software\Classes\pouch.archive\DefaultIcon    (기본값) = "...\pouch\pouch.ico",0
+//! HKCU\Software\Classes\pouch.archive\shell\open\command (기본값) = "...\pouch-gui.exe" "%1"
 //! ```
 
 /// 아이콘 파일 (여러 크기가 든 .ico) — 실행 파일 안에 들어 있다가 등록할 때 풀어 놓는다
-pub const ICON_ICO: &[u8] = include_bytes!("../assets/bzx.ico");
+pub const ICON_ICO: &[u8] = include_bytes!("../assets/pouch.ico");
 /// 창 아이콘용 256px PNG
-pub const ICON_PNG: &[u8] = include_bytes!("../assets/bzx-256.png");
+pub const ICON_PNG: &[u8] = include_bytes!("../assets/pouch-256.png");
 
 #[cfg(windows)]
 pub use imp::*;
@@ -38,30 +39,39 @@ mod imp {
     use winreg::RegKey;
     use winreg::enums::HKEY_CURRENT_USER;
 
-    const PROG_ID: &str = "bzx.archive";
+    const PROG_ID: &str = "pouch.archive";
+    /// 예전 이름으로 등록했던 것 (등록·해제할 때 정리)
+    const LEGACY_PROG_ID: &str = "bzx.archive";
+    /// 연결할 확장자 (새 이름 + 예전 이름)
+    const EXTENSIONS: [&str; 2] = [".pouch", ".bzx"];
     const CLASSES: &str = r"Software\Classes";
 
-    /// `.bzx` 파일을 `exe`(보통 bzx-gui.exe)와 연결하고 아이콘을 등록한다.
+    /// `.pouch` 파일을 `exe`(보통 pouch-gui.exe)와 연결하고 아이콘을 등록한다.
     pub fn register(exe: &Path) -> Result<()> {
-        // 아이콘을 %LOCALAPPDATA%\bzx\bzx.ico 로 풀어 둔다 (exe를 옮겨도 아이콘은 유지)
-        let icon_path = icon_dir()?.join("bzx.ico");
+        // 아이콘을 %LOCALAPPDATA%\pouch\pouch.ico 로 풀어 둔다 (exe를 옮겨도 아이콘은 유지)
+        let icon_path = icon_dir()?.join("pouch.ico");
         std::fs::write(&icon_path, ICON_ICO)
             .with_context(|| format!("아이콘 파일을 쓸 수 없음: {}", icon_path.display()))?;
 
         let classes = RegKey::predef(HKEY_CURRENT_USER)
             .open_subkey_with_flags(CLASSES, winreg::enums::KEY_ALL_ACCESS)?;
 
-        let (ext, _) = classes.create_subkey(".bzx")?;
-        ext.set_value("", &PROG_ID)?;
+        // .pouch와 예전 이름의 .bzx 모두 Pouch로 연다
+        for e in EXTENSIONS {
+            let (ext, _) = classes.create_subkey(e)?;
+            ext.set_value("", &PROG_ID)?;
+        }
+        // 예전 이름(bzx)으로 등록했던 것은 정리한다
+        let _ = classes.delete_subkey_all(LEGACY_PROG_ID);
 
         let (prog, _) = classes.create_subkey(PROG_ID)?;
-        prog.set_value("", &"bzx 압축 파일")?;
+        prog.set_value("", &"Pouch 압축 파일")?;
         let (icon, _) = prog.create_subkey("DefaultIcon")?;
         icon.set_value("", &format!("\"{}\",0", icon_path.display()))?;
         let (cmd, _) = prog.create_subkey(r"shell\open\command")?;
         cmd.set_value("", &format!("\"{}\" \"%1\"", exe.display()))?;
 
-        // 예전에 "연결 프로그램 → bzx-gui.exe"로 직접 고른 경우, 윈도우는 이 키를 본다
+        // 예전에 "연결 프로그램 → pouch-gui.exe"로 직접 고른 경우, 윈도우는 이 키를 본다
         if let Some(exe_name) = exe.file_name() {
             let (app, _) = classes.create_subkey(Path::new("Applications").join(exe_name))?;
             let (app_icon, _) = app.create_subkey("DefaultIcon")?;
@@ -84,25 +94,28 @@ mod imp {
             let _ = classes
                 .delete_subkey_all(Path::new("Applications").join(exe_name).join("DefaultIcon"));
         }
-        // .bzx 가 우리 것을 가리킬 때만 지운다
-        if let Ok(ext) = classes.open_subkey(".bzx") {
-            let current: String = ext.get_value("").unwrap_or_default();
-            if current == PROG_ID {
-                drop(ext);
-                let _ = classes.delete_subkey_all(".bzx");
+        let _ = classes.delete_subkey_all(LEGACY_PROG_ID);
+        // 확장자는 우리 것을 가리킬 때만 지운다 (다른 프로그램이 가져갔으면 그대로 둠)
+        for e in EXTENSIONS {
+            if let Ok(ext) = classes.open_subkey(e) {
+                let current: String = ext.get_value("").unwrap_or_default();
+                if current == PROG_ID || current == LEGACY_PROG_ID {
+                    drop(ext);
+                    let _ = classes.delete_subkey_all(e);
+                }
             }
         }
         if let Ok(dir) = icon_dir() {
-            let _ = std::fs::remove_file(dir.join("bzx.ico"));
+            let _ = std::fs::remove_file(dir.join("pouch.ico"));
         }
         notify_shell();
         Ok(())
     }
 
-    /// 지금 `.bzx`가 이 `exe`와 연결되어 있는지
+    /// 지금 `.pouch`가 이 `exe`와 연결되어 있는지
     pub fn is_registered(exe: &Path) -> bool {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let Ok(ext) = hkcu.open_subkey(format!(r"{CLASSES}\.bzx")) else {
+        let Ok(ext) = hkcu.open_subkey(format!(r"{CLASSES}\.pouch")) else {
             return false;
         };
         let prog: String = ext.get_value("").unwrap_or_default();
@@ -147,7 +160,7 @@ mod imp {
         let base = std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
             .context("LOCALAPPDATA 폴더를 찾을 수 없습니다")?;
-        let dir = base.join("bzx");
+        let dir = base.join("pouch");
         std::fs::create_dir_all(&dir)?;
         Ok(dir)
     }

@@ -1,4 +1,4 @@
-//! .bzx 자체 포맷 압축/해제 (포맷 설명은 format.rs)
+//! .pouch 자체 포맷 압축/해제 (포맷 설명은 format.rs)
 
 use crate::block::{self, BlockReader, BlockWriter};
 use crate::format::{self, CODEC_ZSTD, EntryHeader, EntryKind, HEADER_SIZE, Header};
@@ -147,7 +147,7 @@ pub(crate) fn extract(
         );
     }
     Ok(ArchiveInfo {
-        kind: ArchiveKind::Bzx,
+        kind: ArchiveKind::Pouch,
         entry_count: header.entry_count,
         total_size: header.total_size,
     })

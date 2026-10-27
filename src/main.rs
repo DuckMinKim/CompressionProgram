@@ -1,18 +1,18 @@
 use anyhow::{Result, bail};
-use bzx::{
+use clap::{Parser, Subcommand};
+use pouch::{
     ArchiveKind, CompressOptions, Conflict, OutFormat, Stats, compress_paths,
     default_archive_path_for, extract_archive, human_size as human, list_archive, num_threads,
     read_header,
 };
-use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::time::Instant;
 
 #[derive(Parser)]
 #[command(
-    name = "bzx",
+    name = "pouch",
     version,
-    about = "빠른 압축/해제 프로그램 — 만들기: bzx, zip / 풀기: bzx, zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst"
+    about = "빠른 압축/해제 프로그램 — 만들기: pouch, zip / 풀기: pouch(.bzx), zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -27,10 +27,10 @@ enum Command {
         /// 압축할 파일 또는 폴더
         #[arg(required = true)]
         inputs: Vec<PathBuf>,
-        /// 출력 파일 (기본: <입력 이름>.bzx 또는 .zip, 입력과 같은 위치)
+        /// 출력 파일 (기본: <입력 이름>.pouch 또는 .zip, 입력과 같은 위치)
         #[arg(short, long)]
         output: Option<PathBuf>,
-        /// 형식: bzx (가장 빠르고 작음, 기본) / zip (어디서나 열림). -o 의 확장자가 .zip이면 zip
+        /// 형식: pouch (가장 빠르고 작음, 기본) / zip (어디서나 열림). -o 의 확장자가 .zip이면 zip
         #[arg(long, value_enum)]
         format: Option<FormatArg>,
         /// 압축 레벨 1~22 (높을수록 작고 느림)
@@ -43,7 +43,7 @@ enum Command {
         #[arg(short, long)]
         force: bool,
     },
-    /// 압축 풀기 (bzx, zip, 7z, tar, tar.gz/bz2/xz/zst, gz/bz2/xz/zst — 형식 자동 감지)
+    /// 압축 풀기 (pouch, zip, 7z, tar, tar.gz/bz2/xz/zst, gz/bz2/xz/zst — 형식 자동 감지)
     #[command(alias = "x")]
     Extract {
         /// 풀 압축 파일
@@ -70,7 +70,7 @@ enum Command {
 
 #[derive(Clone, Copy, clap::ValueEnum)]
 enum FormatArg {
-    Bzx,
+    Pouch,
     Zip,
 }
 
@@ -94,11 +94,11 @@ fn main() -> Result<()> {
         } => {
             let format = match (format, &output) {
                 (Some(FormatArg::Zip), _) => OutFormat::Zip,
-                (Some(FormatArg::Bzx), _) => OutFormat::Bzx,
+                (Some(FormatArg::Pouch), _) => OutFormat::Pouch,
                 (None, Some(o)) if o.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip")) => {
                     OutFormat::Zip
                 }
-                _ => OutFormat::Bzx,
+                _ => OutFormat::Pouch,
             };
             let output = match output {
                 Some(o) => o,
@@ -168,8 +168,8 @@ fn main() -> Result<()> {
             let mut files = 0;
             for h in &entries {
                 match h.kind {
-                    bzx::format::EntryKind::Dir => println!("{:>12}  {}/", "<폴더>", h.path),
-                    bzx::format::EntryKind::File => {
+                    pouch::format::EntryKind::Dir => println!("{:>12}  {}/", "<폴더>", h.path),
+                    pouch::format::EntryKind::File => {
                         files += 1;
                         println!("{:>12}  {}", human(h.size), h.path)
                     }
@@ -196,10 +196,10 @@ fn main() -> Result<()> {
             );
         }
         Command::Info { input } => {
-            let kind = bzx::foreign::detect(&input)?;
-            if kind == ArchiveKind::Bzx {
+            let kind = pouch::foreign::detect(&input)?;
+            if kind == ArchiveKind::Pouch {
                 let (h, payload) = read_header(&input)?;
-                println!("형식       : bzx v{} (zstd 레벨 {})", h.version, h.level);
+                println!("형식       : pouch v{} (zstd 레벨 {})", h.version, h.level);
                 println!("항목 수    : {}", h.entry_count);
                 println!("원본 크기  : {}", human(h.total_size));
                 println!("압축 데이터: {}", human(payload));

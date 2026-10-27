@@ -1,7 +1,7 @@
 //! 다른 프로그램이 만든 압축 파일 풀기: zip, 7z, tar, tar.gz/bz2/xz/zst, 단일 .gz/.bz2/.xz/.zst
 //!
 //! 형식은 확장자가 아니라 파일 맨 앞의 "매직 넘버"로 알아낸다 (확장자가 틀려도 동작).
-//! 경로 검사·이름 충돌·쓰기는 bzx와 같은 [`Sink`]를 쓴다.
+//! 경로 검사·이름 충돌·쓰기는 Pouch 포맷과 같은 [`Sink`]를 쓴다.
 
 use crate::format::{self, EntryHeader, EntryKind};
 use crate::sink::Sink;
@@ -15,7 +15,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// 압축 파일 종류
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArchiveKind {
-    Bzx,
+    Pouch,
     Zip,
     SevenZ,
     /// tar (+ 바깥 압축)
@@ -37,7 +37,7 @@ pub enum Outer {
 impl ArchiveKind {
     pub fn label(self) -> &'static str {
         match self {
-            ArchiveKind::Bzx => "bzx",
+            ArchiveKind::Pouch => "pouch",
             ArchiveKind::Zip => "zip",
             ArchiveKind::SevenZ => "7z",
             ArchiveKind::Tar(Outer::None) => "tar",
@@ -56,7 +56,8 @@ impl ArchiveKind {
 
 /// 이 프로그램이 열 수 있는 확장자 (파일 선택 창·끌어다 놓기 판단용)
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "bzx", "zip", "7z", "tar", "gz", "tgz", "bz2", "tbz", "tbz2", "xz", "txz", "zst", "tzst",
+    "pouch", "bzx", "zip", "7z", "tar", "gz", "tgz", "bz2", "tbz", "tbz2", "xz", "txz", "zst",
+    "tzst",
 ];
 
 /// 확장자로 보아 압축 파일인지 (빠른 판단용, 실제 형식은 [`detect`]가 확인)
@@ -76,8 +77,8 @@ pub fn detect(path: &Path) -> Result<ArchiveKind> {
     let n = read_up_to(&mut f, &mut head)?;
     let head = &head[..n];
 
-    let outer = if head.starts_with(b"BZX\0") {
-        return Ok(ArchiveKind::Bzx);
+    let outer = if head.starts_with(&format::MAGIC) || head.starts_with(&format::LEGACY_MAGIC) {
+        return Ok(ArchiveKind::Pouch);
     } else if head.starts_with(b"PK\x03\x04") || head.starts_with(b"PK\x05\x06") {
         return Ok(ArchiveKind::Zip);
     } else if head.starts_with(&[b'7', b'z', 0xBC, 0xAF, 0x27, 0x1C]) {
@@ -93,7 +94,7 @@ pub fn detect(path: &Path) -> Result<ArchiveKind> {
     } else if is_tar_header(head) {
         return Ok(ArchiveKind::Tar(Outer::None));
     } else {
-        bail!("지원하지 않는 압축 형식입니다 (지원: bzx, zip, 7z, tar, gz, bz2, xz, zst)");
+        bail!("지원하지 않는 압축 형식입니다 (지원: pouch, zip, 7z, tar, gz, bz2, xz, zst)");
     };
 
     // 압축 스트림 안이 tar인지, 파일 하나인지 앞부분을 풀어서 확인
@@ -147,7 +148,7 @@ pub(crate) fn extract(
         ArchiveKind::SevenZ => extract_7z(input, sink, on_entry)?,
         ArchiveKind::Tar(outer) => extract_tar(input, outer, sink, on_entry)?,
         ArchiveKind::Single(outer) => extract_single(input, outer, sink, on_entry)?,
-        ArchiveKind::Bzx => unreachable!("bzx는 bzx 모듈이 처리"),
+        ArchiveKind::Pouch => unreachable!("Pouch 포맷은 native 모듈이 처리"),
     };
     Ok(ArchiveInfo {
         kind,
